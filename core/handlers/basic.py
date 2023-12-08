@@ -1,75 +1,101 @@
-from aiogram import Bot, Router
+from aiogram import Bot, Router, F
 from io import BytesIO
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import emoji 
-from core.keyboards.inline import first_keyboard
 from core.utils.dbconnect import Request
 from aiogram.filters import Command, StateFilter
 from core.parser.parseavito import ParseAvito
-from core.utils.redis_utils import ConnectRedis, create_redis_pool
+from core.parser.parsewb import ParseWB
 from core.utils.xlsx_utils import create_excel_file
+from core.keyboards.inline import stores_kb
+from core.keyboards.reply import start_kb
+
+
 class ClientState(StatesGroup):
     START_ORDER = State()
-    FUNC_SELECTED = State()
+    PARSE_SELECTED = State()
     HELP_SELECTED = State()
 
 class StoreState(StatesGroup):
     WB_SELECTED = State()
-    OZON_SELECTED = State()
     AVITO_SELECTED = State()
-    YM_SELECTED = State()
-
 
 router = Router()
 
-START_TEXT = """
+@router.message(Command(commands=['start', 'run']))
+async def get_start(message: Message, request: Request, state: FSMContext, coins: int):
+    START_TEXT = """
 
 Я <b>парсер</b>
-И вот что я умею 
+И вот что я умею 👇
 
-"""
-
-@router.message(Command(commands=['start', 'run']))
-async def get_start(message: Message, request: Request, state: FSMContext):
-    await request.add_data(message.from_user.id, message.from_user.first_name)
-    await message.answer(f'Привет, <b>{message.from_user.first_name}</b>!' + START_TEXT + emoji.emojize(':backhand_index_pointing_down:'),
-                        reply_markup=first_keyboard)
+    """
+    keyboard = start_kb()
+    await request.add_data(message.from_user.id, message.from_user.first_name, coins)
+    await message.answer(f'Привет, <b>{message.from_user.first_name}</b>!' + START_TEXT,
+                        reply_markup=keyboard)
     await state.set_state(ClientState.START_ORDER)
-     
-   
+
+@router.message(F.text.lower() == "парсинг магазина")
+async def parse_store(message: Message, state: FSMContext):
+    keyboard = stores_kb()
+    await message.answer('Выбери сайт из предложенного списка', 
+                        reply_markup=keyboard)
+    await state.set_state(ClientState.PARSE_SELECTED)
+
+@router.message(F.text.lower() == "помощь")
+async def help(message: Message):
+    HELP_TEXT = """
+
+    <b>Инструкция по использованию бота:</b>
+    1)Напишите команду <b>/start</b>
+    2)Нажмите на кнопку "Парсинг магазина"
+    3)Выберите магазин из предложенного списка
+    4)Напишите название товара
+
+    """
+    await message.answer(HELP_TEXT)
     
 @router.message(StateFilter(StoreState.AVITO_SELECTED))
-async def get_name_product(message: Message, bot: Bot):
-    pool = create_redis_pool()
-    redis = ConnectRedis(pool)
+async def parse_avito(message: Message, bot: Bot, coins: int):
+    PRE_TEXT = f"""
+    Файл скоро будет готов, подождите немного)
+
+    Осталось <b>{coins}</b> монет из 100 на сегодня.
+    
+    """
+    await message.answer(PRE_TEXT)
+
     chat_id = message.chat.id
     query = message.text
     parser = ParseAvito()
     products = parser.get_data_with_selenium(query)
-    await create_excel_file(products, query)
-    
-    file = await redis.redis_get(f'{query}_file')
-    document = FSInputFile(file, filename='avito.xlsx')
+
+    file = await create_excel_file(products)
+    document = BufferedInputFile(file, filename=f'{query}.xlsx')
     await bot.send_document(chat_id, document)
-    await redis.redis_delete(f'{query}_file')
+
+@router.message(StateFilter(StoreState.WB_SELECTED))
+async def parse_wb(message: Message, bot: Bot, coins: int):
+    PRE_TEXT = f"""
+    Файл скоро будет готов, подождите немного)
+
+    Осталось <b>{coins}</b> монет из 100 на сегодня.
+    
+    """
+    await message.answer(PRE_TEXT)
+    chat_id = message.chat.id
+    query = message.text
+    parser = ParseWB()
+    products = parser.parse(query)
+    file = await create_excel_file(products)
+    document = BufferedInputFile(file, filename=f'{query}.xlsx')
+    await bot.send_document(chat_id, document)
+    
 
 
-
-
-    # chat_id = message.chat.id
-    # # global func_complete
-    # # if func_complete == True:
-    # #     product = message.text
-    # # else:
-    # #     await message.answer('Не получилось спарсить товар')
-    # product = message.text
-    # if not product:
-    #       await message.answer('Пожалуйста, укажиет название товара')
-    # p_avito = ParseAvito()
-    # data = await p_avito.main(product)
-    # return (data, product)
 
 
 

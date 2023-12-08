@@ -1,96 +1,58 @@
-import xlsxwriter
-from bs4 import BeautifulSoup as bs4
-from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
-from selenium.webdriver.firefox.options import Options as Firefox_Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-import time 
+import requests
+
+url = "https://search.wb.ru/exactmatch/ru/male/v4/search"
+
+payload = ""
+headers = {
+    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
+    "x-userid": "61637444",
+    "Origin": "https://www.wildberries.ru",
+    "Connection": "keep-alive",
+    "Referer": "https://www.wildberries.ru/",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "cross-site"
+}
 
 class ParseWB:
-    def web_settings(self, url):
-        firefox_options = Firefox_Options()
+    def web_settings(self, product):
+        url = "https://search.wb.ru/exactmatch/ru/male/v4/search"
+        querystring = {"TestGroup":"rec_search_goods_new_model","TestID":"370","appType":"1","curr":"rub","dest":"-3524932","query":f"{product}","resultset":"catalog","sort":"popular","spp":"26","suppressSpellcheck":"false","uclusters":"1"}
 
-        driver = Service('/home/ekwize/Documents/ParseBot/core/parser/geckodriver') ## path where you saved geckodriver
-        
-        try:
-            browser = webdriver.Firefox(service=driver, options=firefox_options)
-            browser.get(url=url)
-            time.sleep(5)
-        
-            self.index_selenium = browser.page_source
-        
-        except Exception as ex:
-            print(ex)
-        finally:
-            browser.close()
-            browser.quit()
+        payload = ""
+        headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0",
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "x-userid": "61637444",
+            "Origin": "https://www.wildberries.ru",
+            "Connection": "keep-alive",
+            "Referer": "https://www.wildberries.ru/",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "cross-site"
+        }
 
+        response = requests.request(
+        "GET", url, data=payload, headers=headers, params=querystring
+        ).json()
 
-    def get_data_with_selenium(self, url):
-        self.web_settings(url)
+        return response
 
-        # get hotels urls
-        soup = bs4(self.index_selenium, "lxml")
-        all_blocks = soup.find_all("div", class_ = "product-card__wrapper")
+    def parse(self, product: str):
+        response = self.web_settings(product)
+        products = response["data"]["products"]
         data = []
-        for block in all_blocks:
-            data.append(self.parse_block(block))
-        
-        
-        self.create_excel_file(data)
-             
-    # def parse_page(self, text: str):
-    #     soup = bs4(text, 'lxml')
-    #     container = soup.select('article.product-card.product-card--hoverable.j-card-item ') #article.product-card.product-card--hoverable.j-card-item   
-    #     for block in container:
-    #         self.parse_block(block=block)
+        for product in products:
+            name = product["name"]
+            id = product['id']
+            url = f'https://www.wildberries.ru/catalog/{id}/detail.aspx'
+            price = str(product["salePriceU"])[:-2] + '₽'
+            data.append([str(name), str(url), str(price)])
 
-    def parse_block(self, block):
-        url_block = block.select_one("a", class_="product-card__link j-card-link j-open-full-product-card")
-        name = str(url_block.get('aria-label'))
-        # brand_name = block.select_one("span", class_="product-card__brand")
-        url = str(url_block.get('href'))
-        price_block = block.select_one("span", class_="price__wrap")
-        price = str(price_block.get('ins'))
+        return data
 
-        return [name, url, price]
-    
-
-
-
-    def create_excel_file(self, data):
-        
-        name_columns = [
-            ('Название', 'A1'),
-            ('Ссылка на товар', 'B1'), 
-            ('Цена', 'C1'),
-        ]
-        workbook = xlsxwriter.Workbook('wildberries.xlsx')
-        worksheet = workbook.add_worksheet()
-        worksheet.set_row(0, 40)
-
-        bold = workbook.add_format({'bold': True})
-        counter = 0
-        for field_data in name_columns:
-            name, field = field_data
-            worksheet.set_column(counter, counter, 40)
-            worksheet.write(field, name, bold)
-            counter += 1
-        row = 1
-        for product in data:
-            col_number = 0
-            for i in range(len(product)):
-                worksheet.write(row, col_number, product[i])
-                col_number += 1
-            row += 1
-        workbook.close()
-
-    def main(self):
-        self.get_data_with_selenium("https://www.wildberries.ru/catalog/0/search.aspx?search=привет")
-
-
-if __name__ == '__main__':
-    parser = ParseWB()
-    parser.main()
