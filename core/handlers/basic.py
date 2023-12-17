@@ -1,31 +1,22 @@
 from aiogram import Bot, Router, F
-from io import BytesIO
+import time
 from aiogram.types import Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-import emoji 
-from core.utils.dbconnect import Request
 from aiogram.filters import Command, StateFilter
+from core.filters.filter import SymbolFilter
 from core.parser.parseavito import ParseAvito
 from core.parser.parsewb import ParseWB
 from core.utils.xlsx_utils import create_excel_file
 from core.keyboards.inline import stores_kb
 from core.keyboards.reply import start_kb
-
-
-class ClientState(StatesGroup):
-    START_ORDER = State()
-    PARSE_SELECTED = State()
-    HELP_SELECTED = State()
-
-class StoreState(StatesGroup):
-    WB_SELECTED = State()
-    AVITO_SELECTED = State()
+from core.db1 import get_coins, update_coins
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from core.states import ClientState, StoreState
 
 router = Router()
 
 @router.message(Command(commands=['start', 'run']))
-async def get_start(message: Message, request: Request, state: FSMContext, coins: int):
+async def get_start(message: Message, state: FSMContext, sessionmaker: async_sessionmaker[AsyncSession]):
     START_TEXT = """
 
 Я <b>парсер</b>
@@ -33,9 +24,15 @@ async def get_start(message: Message, request: Request, state: FSMContext, coins
 
     """
     keyboard = start_kb()
-    await request.add_data(message.from_user.id, message.from_user.first_name, coins)
+
+    # await register_user(user_id=message.from_user.id, 
+    #                     username=message.from_user.username, 
+    #                     coins=100, 
+    #                     sessionmaker=sessionmaker)
+    
     await message.answer(f'Привет, <b>{message.from_user.first_name}</b>!' + START_TEXT,
                         reply_markup=keyboard)
+    
     await state.set_state(ClientState.START_ORDER)
 
 @router.message(F.text.lower() == "парсинг магазина")
@@ -58,12 +55,20 @@ async def help(message: Message):
     """
     await message.answer(HELP_TEXT)
     
-@router.message(StateFilter(StoreState.AVITO_SELECTED))
-async def parse_avito(message: Message, bot: Bot, coins: int):
+@router.message(SymbolFilter('/'), (StoreState.AVITO_SELECTED))
+async def parse_avito(message: Message, bot: Bot, sessionmaker: async_sessionmaker[AsyncSession]):
+    user_id = message.from_user.id
+    
+    await update_coins(user_id=user_id,
+                       sessionmaker=sessionmaker)
+    
+    coins = await get_coins(user_id=user_id,
+                            sessionmaker=sessionmaker)
+
     PRE_TEXT = f"""
     Файл скоро будет готов, подождите немного)
 
-    Осталось <b>{coins}</b> монет из 100 на сегодня.
+Осталось <b>{coins}</b> монет из 100 на сегодня.
     
     """
     await message.answer(PRE_TEXT)
@@ -77,12 +82,20 @@ async def parse_avito(message: Message, bot: Bot, coins: int):
     document = BufferedInputFile(file, filename=f'{query}.xlsx')
     await bot.send_document(chat_id, document)
 
-@router.message(StateFilter(StoreState.WB_SELECTED))
-async def parse_wb(message: Message, bot: Bot, coins: int):
+@router.message(SymbolFilter('/'), StateFilter(StoreState.WB_SELECTED))
+async def parse_wb(message: Message, bot: Bot, sessionmaker: async_sessionmaker[AsyncSession]):
+    user_id = message.from_user.id
+
+    await update_coins(user_id=user_id,
+                        sessionmaker=sessionmaker)
+    
+    coins = await get_coins(user_id=user_id,
+                            sessionmaker=sessionmaker)
+    
     PRE_TEXT = f"""
     Файл скоро будет готов, подождите немного)
 
-    Осталось <b>{coins}</b> монет из 100 на сегодня.
+Осталось <b>{coins}</b> монет из 100 на сегодня.
     
     """
     await message.answer(PRE_TEXT)
@@ -92,6 +105,7 @@ async def parse_wb(message: Message, bot: Bot, coins: int):
     products = parser.parse(query)
     file = await create_excel_file(products)
     document = BufferedInputFile(file, filename=f'{query}.xlsx')
+    time.sleep(1)
     await bot.send_document(chat_id, document)
     
 

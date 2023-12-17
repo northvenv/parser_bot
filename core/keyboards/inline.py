@@ -4,6 +4,10 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 @cache
 def stores_kb():
+    """ 
+    Кнопки с магазинами
+    """
+    
     kb = [
             [
                 InlineKeyboardButton(text = 'Wilberries', callback_data = 'wb_parse'),
