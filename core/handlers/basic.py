@@ -9,18 +9,27 @@ from core.parser.parsewb import ParseWB
 from core.utils.xlsx_utils import create_excel_file
 from core.keyboards.inline import stores_kb
 from core.keyboards.reply import start_kb
-from core.db1 import get_coins, update_coins
+from core.db.postgresql import get_coins, update_coins
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from core.states import ClientState, StoreState
 
 router = Router()
 
-@router.message(Command(commands=['start', 'run']))
-async def get_start(message: Message, state: FSMContext, sessionmaker: async_sessionmaker[AsyncSession]):
+
+# @router.message(StateFilter(ClientState.PRE_START))
+# async def pre_start(message: Message):
+#     await message.answer('Нажми на команду /start')
+
+
+@router.message(Command(commands=['start']))
+async def get_start(message: Message, state: FSMContext):
     START_TEXT = """
 
 Я <b>парсер</b>
-И вот что я умею 👇
+Могу спарсить любой товар, который ты укажешь😏
+
+Перед началом рекомендую нажать на кнопку <b>Помощь</b> 
+и узнать как мною пользоваться
 
     """
     keyboard = start_kb()
@@ -43,7 +52,7 @@ async def parse_store(message: Message, state: FSMContext):
     await state.set_state(ClientState.PARSE_SELECTED)
 
 @router.message(F.text.lower() == "помощь")
-async def help(message: Message):
+async def help(message: Message, state: FSMContext):
     HELP_TEXT = """
 
     <b>Инструкция по использованию бота:</b>
@@ -53,10 +62,13 @@ async def help(message: Message):
     4)Напишите название товара
 
     """
+    await state.set_state(ClientState.HELP_SELECTED)
     await message.answer(HELP_TEXT)
     
-@router.message(SymbolFilter('/'), (StoreState.AVITO_SELECTED))
-async def parse_avito(message: Message, bot: Bot, sessionmaker: async_sessionmaker[AsyncSession]):
+@router.message(SymbolFilter('/', '\\'), StateFilter(StoreState.AVITO_SELECTED))
+async def parse_avito(message: Message, 
+                      bot: Bot, 
+                      sessionmaker: async_sessionmaker[AsyncSession]):
     user_id = message.from_user.id
     
     await update_coins(user_id=user_id,
@@ -82,8 +94,10 @@ async def parse_avito(message: Message, bot: Bot, sessionmaker: async_sessionmak
     document = BufferedInputFile(file, filename=f'{query}.xlsx')
     await bot.send_document(chat_id, document)
 
-@router.message(SymbolFilter('/'), StateFilter(StoreState.WB_SELECTED))
-async def parse_wb(message: Message, bot: Bot, sessionmaker: async_sessionmaker[AsyncSession]):
+@router.message(SymbolFilter('/', '\\'), StateFilter(StoreState.WB_SELECTED))
+async def parse_wb(message: Message, 
+                   bot: Bot, 
+                   sessionmaker: async_sessionmaker[AsyncSession]):
     user_id = message.from_user.id
 
     await update_coins(user_id=user_id,

@@ -3,7 +3,7 @@ from typing import Callable, Dict, Awaitable, Any
 from aiogram import BaseMiddleware
 from aiogram.types import Message
 from sqlalchemy import select
-from core.db1 import User
+from core.db.postgresql import User
 
 
 class RegisterCheck(BaseMiddleware):

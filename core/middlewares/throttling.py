@@ -2,23 +2,30 @@ from typing import Callable, Dict, Awaitable, Any
 
 from aiogram import BaseMiddleware
 from aiogram.types import Message
-from aiogram.fsm.context import FSMContext
-from core.states import StoreState, ClientState
+from aiogram.fsm.storage.redis import RedisStorage
 
 class ThrottlingMiddleware(BaseMiddleware):
-    def __init__(self, state: FSMContext):
-        self.state = state
-
-    def __call__(
+    def __init__(self, storage: RedisStorage):
+        self.storage = storage
+    
+    async def __call__(
             self, 
             handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
             event: Message,
             data: Dict[str, Any],
     ) -> Any:
-        # if self.state == StoreState.WB_SELECTED or self.state == StoreState.AVITO_SELECTED:
-        # if self.state in (StoreState. WB_SELECTED, StoreState.AVITO_SELECTED):
-        state = data['fsm']
+        user = f'user{event.from_user.id}'
+
+        check_user = await self.storage.redis.get(user)
         
+        if not check_user:
+            await self.storage.redis.set(user, value=1)
+            await handler(event, data)
+            await self.storage.redis.delete(user)
+        else:
+            return await event.answer('Подожди пока загрузится предыдущий файл')
+               
+               
 
 
 

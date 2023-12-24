@@ -5,16 +5,21 @@ import logging
 from core.config_data.settings import get_settings
 from aiogram.fsm.storage.redis import RedisStorage
 from aioredis.client import Redis
-from core.middlewares.register_check import RegisterCheck
-from core.handlers import basic, callback
-from core.db1 import get_session_maker
-from core.commands import bot_commands
 
-async def create_redis_pool(config):
-    return await Redis(host = config.redis.redis_host,
-                port = config.redis.redis_port,
-                db = config.redis.redis_db,
-                password = config.redis.redis_password)
+from core.middlewares.register_check import RegisterCheck
+from core.middlewares.throttling import ThrottlingMiddleware
+from core.middlewares.statemiddleware import StateMiddleware
+
+
+from core.handlers import basic, callback
+from core.db.postgresql import get_session_maker
+from core.commands import bot_commands
+from core.db.redis import create_redis_pool
+from aiogram.fsm.context import FSMContext
+from core.states import ClientState, StoreState
+
+# async def fsm_reset(state: FSMContext):
+#     await state.set_state(ClientState.PRE_START())
 
 async def main():
     logging.basicConfig(level=logging.INFO, 
@@ -33,20 +38,23 @@ async def main():
     
     pool = await create_redis_pool(config)
     storage = RedisStorage(redis=pool)
-    
+
+    # state = ClientState()
+
     dp = Dispatcher(storage=storage)
     dp.message.middleware.register(RegisterCheck())
+    dp.message.middleware.register(ThrottlingMiddleware(storage=storage))
+    dp.message.middleware.register(StateMiddleware())
     dp.message.filter(F.chat.type == "private")
     dp.include_routers(basic.router,
                        callback.router)
                 
     try:
         await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot, sessionmaker=get_session_maker())
+        await storage.redis.flushdb()
+        await dp.start_polling(bot, sessionmaker=get_session_maker(), storage=storage)
     finally:
         await bot.session.close()
-
-
 
 if __name__ == '__main__':
     try:
