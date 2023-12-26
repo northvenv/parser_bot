@@ -8,7 +8,9 @@ class ParseAvito:
     def web_settings(self, url):
         firefox_options = Firefox_Options()
 
-        driver = Service('/home/ekwize/Documents/ParseBot/core/parser/geckodriver') ## path where you saved geckodriver
+        driver = Service('/home/ekwize/Documents/ParseBot/core/parser/geckodriver')
+        firefox_options.add_argument('headless')
+        firefox_options.add_argument('window-size=1920x935')
         
         try:
             browser = webdriver.Firefox(service=driver, options=firefox_options)

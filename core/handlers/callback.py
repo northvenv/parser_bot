@@ -1,4 +1,4 @@
-from aiogram import Bot, Router
+from aiogram import Router
 from aiogram.types import CallbackQuery
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
@@ -6,6 +6,7 @@ from core.states import ClientState, StoreState
 
 router = Router()
  
+#inline handler
 @router.callback_query(StateFilter(ClientState.PARSE_SELECTED))
 async def select_store(call: CallbackQuery, state: FSMContext): 
     """

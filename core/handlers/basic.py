@@ -1,28 +1,18 @@
-from aiogram import Bot, Router, F
-import time
-from aiogram.types import Message, BufferedInputFile
+from aiogram import Router, F
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command, StateFilter
-from core.filters.filter import SymbolFilter
-from core.parser.parseavito import ParseAvito
-from core.parser.parsewb import ParseWB
-from core.utils.xlsx_utils import create_excel_file
+from aiogram.filters import Command
+
 from core.keyboards.inline import stores_kb
 from core.keyboards.reply import start_kb
-from core.db.postgresql import get_coins, update_coins
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from core.states import ClientState, StoreState
+
+from core.states import ClientState
 
 router = Router()
 
-
-# @router.message(StateFilter(ClientState.PRE_START))
-# async def pre_start(message: Message):
-#     await message.answer('Нажми на команду /start')
-
-
+#start handler
 @router.message(Command(commands=['start']))
-async def get_start(message: Message, state: FSMContext):
+async def start(message: Message, state: FSMContext):
     START_TEXT = """
 
 Я <b>парсер</b>
@@ -34,16 +24,12 @@ async def get_start(message: Message, state: FSMContext):
     """
     keyboard = start_kb()
 
-    # await register_user(user_id=message.from_user.id, 
-    #                     username=message.from_user.username, 
-    #                     coins=100, 
-    #                     sessionmaker=sessionmaker)
-    
     await message.answer(f'Привет, <b>{message.from_user.first_name}</b>!' + START_TEXT,
                         reply_markup=keyboard)
     
     await state.set_state(ClientState.START_ORDER)
 
+#parse handler
 @router.message(F.text.lower() == "парсинг магазина")
 async def parse_store(message: Message, state: FSMContext):
     keyboard = stores_kb()
@@ -51,6 +37,7 @@ async def parse_store(message: Message, state: FSMContext):
                         reply_markup=keyboard)
     await state.set_state(ClientState.PARSE_SELECTED)
 
+#help handler
 @router.message(F.text.lower() == "помощь")
 async def help(message: Message, state: FSMContext):
     HELP_TEXT = """
@@ -64,63 +51,6 @@ async def help(message: Message, state: FSMContext):
     """
     await state.set_state(ClientState.HELP_SELECTED)
     await message.answer(HELP_TEXT)
-    
-@router.message(SymbolFilter('/', '\\'), StateFilter(StoreState.AVITO_SELECTED))
-async def parse_avito(message: Message, 
-                      bot: Bot, 
-                      sessionmaker: async_sessionmaker[AsyncSession]):
-    user_id = message.from_user.id
-    
-    await update_coins(user_id=user_id,
-                       sessionmaker=sessionmaker)
-    
-    coins = await get_coins(user_id=user_id,
-                            sessionmaker=sessionmaker)
-
-    PRE_TEXT = f"""
-    Файл скоро будет готов, подождите немного)
-
-Осталось <b>{coins}</b> монет из 100 на сегодня.
-    
-    """
-    await message.answer(PRE_TEXT)
-
-    chat_id = message.chat.id
-    query = message.text
-    parser = ParseAvito()
-    products = parser.get_data_with_selenium(query)
-
-    file = await create_excel_file(products)
-    document = BufferedInputFile(file, filename=f'{query}.xlsx')
-    await bot.send_document(chat_id, document)
-
-@router.message(SymbolFilter('/', '\\'), StateFilter(StoreState.WB_SELECTED))
-async def parse_wb(message: Message, 
-                   bot: Bot, 
-                   sessionmaker: async_sessionmaker[AsyncSession]):
-    user_id = message.from_user.id
-
-    await update_coins(user_id=user_id,
-                        sessionmaker=sessionmaker)
-    
-    coins = await get_coins(user_id=user_id,
-                            sessionmaker=sessionmaker)
-    
-    PRE_TEXT = f"""
-    Файл скоро будет готов, подождите немного)
-
-Осталось <b>{coins}</b> монет из 100 на сегодня.
-    
-    """
-    await message.answer(PRE_TEXT)
-    chat_id = message.chat.id
-    query = message.text
-    parser = ParseWB()
-    products = parser.parse(query)
-    file = await create_excel_file(products)
-    document = BufferedInputFile(file, filename=f'{query}.xlsx')
-    time.sleep(1)
-    await bot.send_document(chat_id, document)
     
 
 
