@@ -1,7 +1,5 @@
-from aiogram import Router
 from aiogram.filters import Filter
 from aiogram.types import Message
-from core.states import StoreState
 
 class SymbolFilter(Filter):
     def __init__(self, *args: str) -> None:

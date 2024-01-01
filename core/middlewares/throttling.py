@@ -3,7 +3,6 @@ from typing import Callable, Dict, Awaitable, Any
 from aiogram import BaseMiddleware
 from aiogram.types import Message
 from aiogram.fsm.storage.redis import RedisStorage
-from core.states import ClientState, StoreState
 
 class ThrottlingMiddleware(BaseMiddleware):
     def __init__(self, storage: RedisStorage):
