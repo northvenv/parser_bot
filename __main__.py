@@ -32,8 +32,8 @@ async def main():
     bot = Bot(token=config.bot.token, parse_mode='HTML')
     await bot.set_my_commands(commands=commands)
     
-    pool = await create_redis_pool(config)
-    storage = RedisStorage(redis=pool)
+    redis= await create_redis_pool(config)
+    storage = RedisStorage(redis=redis)
 
     dp = Dispatcher(storage=storage)
     dp.message.middleware.register(RegisterCheck())
